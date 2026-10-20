@@ -180,6 +180,71 @@ export const scheduleMail = async (
   }
 };
 
+export type DatabasePermission = "none" | "view" | "comment" | "edit";
+
+/**
+ * Resolves what a user may do with a database.
+ *
+ * Owners and admins can always do everything, everybody else is limited by
+ * the default permission of the database and by their own access entry.
+ */
+export const getDatabasePermission = async (
+  ctx: Ctx,
+  databaseId: Id<"documents">,
+  userId: string,
+  role: WorkspaceRole = "member",
+): Promise<DatabasePermission> => {
+  if (role === "owner" || role === "admin") return "edit";
+
+  const database = await ctx.db.get(databaseId);
+  if (!database) return "none";
+
+  const entry = await ctx.db
+    .query("databaseAccess")
+    .withIndex("by_database", (q) => q.eq("databaseId", databaseId))
+    .filter((q) => q.eq(q.field("userId"), userId))
+    .first();
+
+  if (entry) {
+    return entry.permission as DatabasePermission;
+  }
+
+  return (database.dbPermission as DatabasePermission) ?? "edit";
+};
+
+/** Throws when the user may not do what they are trying to do. */
+export const requireDatabasePermission = async (
+  ctx: Ctx,
+  databaseId: Id<"documents">,
+  userId: string,
+  role: WorkspaceRole,
+  needed: "view" | "comment" | "edit",
+) => {
+  const permission = await getDatabasePermission(
+    ctx,
+    databaseId,
+    userId,
+    role,
+  );
+
+  const rank: Record<DatabasePermission, number> = {
+    none: 0,
+    view: 1,
+    comment: 2,
+    edit: 3,
+  };
+
+  if (rank[permission] < rank[needed]) {
+    throw new Error(
+      needed === "view"
+        ? "You do not have access to this database"
+        : "You do not have permission to change this database",
+    );
+  }
+
+  return permission;
+};
+
 export const getDocument = async (ctx: Ctx, documentId: Id<"documents">) => {
   const document = await ctx.db.get(documentId);
   if (!document) {

@@ -1299,7 +1299,7 @@ def build_updates_and_next_steps(path: Path):
         document,
         "**Status: green.** TypeScript compiles cleanly, ESLint reports only "
         "one pre-existing warning, the production build succeeds for all 11 "
-        "routes, 84 automated tests pass, the application boots and serves "
+        "routes, 100 automated tests pass, the application boots and serves "
         "every route without a single server-side error, and the live Convex "
         "deployment was verified end to end with the CLI.",
     )
@@ -1353,8 +1353,8 @@ def build_updates_and_next_steps(path: Path):
         " \u2713 tests/databases.test.ts (9 tests) 64ms\n"
         " \u2713 tests/plans.test.ts (16 tests) 28ms\n"
         " \u2713 tests/formula.test.ts (9 tests) 8ms\n\n"
-        " Test Files  12 passed (12)\n"
-        "      Tests  84 passed (84)",
+        " Test Files  13 passed (13)\n"
+        "      Tests  100 passed (100)",
     )
 
     document.add_heading("2.3 Runtime smoke test", level=2)
@@ -1624,7 +1624,69 @@ def build_updates_and_next_steps(path: Path):
         ],
     )
 
-    document.add_heading("3.11 Continuous integration & deployment", level=2)
+    document.add_heading("3.11 Payments with Razorpay", level=2)
+    add_bullets(
+        document,
+        [
+            "**`lib/razorpay.ts`** — a minimal Razorpay client: creating an "
+            "order (in paise), verifying a payment signature and verifying a "
+            "webhook signature with HMAC-SHA256.",
+            "**`convex/razorpay.ts`** — the `createOrder` action (an action, "
+            "because only actions can talk to the network) and the "
+            "`verifyPayment` mutation, which activates the subscription **only** "
+            "after the signature was verified on the server.",
+            "**The webhook** — `app/api/webhooks/razorpay/route.ts` verifies the "
+            "`x-razorpay-signature` header with the webhook secret.",
+            "**The checkout** — when `NEXT_PUBLIC_RAZORPAY_KEY_ID` is configured the "
+            "Razorpay widget is opened; without it the demo card form is used.",
+            "The prices are stored in USD and converted with "
+            "`RAZORPAY_INR_PER_USD` (default 83).",
+        ],
+    )
+
+    document.add_heading("3.12 Public page comments", level=2)
+    add_bullets(
+        document,
+        [
+            "A page that is published with the **Can comment** access accepts "
+            "comments from anonymous visitors — they only need a name.",
+            "The comment thread is rendered under the published page.",
+            "Guards: no links, a maximum length, and a rate limit of five "
+            "comments per five minutes.",
+        ],
+    )
+
+    document.add_heading("3.13 Per-database permissions", level=2)
+    add_bullets(
+        document,
+        [
+            "Every database has a **default permission** for the workspace "
+            "(*Can edit*, *Can comment*, *Can view* or *No access*) and can give "
+            "individual people a different one.",
+            "The permission is resolved on the server: reading a database needs "
+            "*view*, changing rows needs *edit* — owners and admins can always do "
+            "everything.",
+            "The *Permissions* panel next to the automations manages it.",
+        ],
+    )
+
+    document.add_heading("3.14 The development sign-in", level=2)
+    add_bullets(
+        document,
+        [
+            "A sign-in that works without a Clerk account — it makes testing the "
+            "app a two-click affair.",
+            "**It is not public:** the deployment has to have `ALLOW_DEV_AUTH=true` "
+            "and the JWT secret of the deployment, and the page "
+            "(`/dev/signin`) is not linked anywhere. The production deployment has "
+            "neither of the two variables, so every function there refuses to run.",
+            "The tokens are ordinary JWTs, so the rest of the application does not "
+            "know whether a request came from Clerk or from the development "
+            "sign-in.",
+        ],
+    )
+
+    document.add_heading("3.15 Continuous integration & deployment", level=2)
     add_bullets(
         document,
         [
@@ -1798,9 +1860,9 @@ npx convex run demo:reset '{"key":"<KEY>"}'""",
             ["Slack / Google Drive / GitHub integrations", "OPEN", "Needs third-party OAuth and webhooks"],
             ["Mobile apps", "OPEN", "A React Native shell on top of the existing API"],
             ["Offline support", "OPEN", "Local cache and conflict resolution"],
-            ["Public pages with comments", "OPEN", "Comments on published pages for anonymous visitors"],
-            ["Per-database permissions / private teamspaces", "OPEN", "Finer grained access control"],
-            ["Real payment processing", "OPEN", "Replace the demo checkout with Stripe"],
+            ["Public pages with comments", "DONE", "Visitors of a published page can comment without an account"],
+            ["Per-database permissions", "DONE", "A default permission per database plus a permission per person"],
+            ["Real payment processing", "DONE", "Razorpay: order creation, signature verification and webhooks (the demo card form stays as a fallback)"],
         ],
     )
 
@@ -1910,6 +1972,16 @@ npx convex run demo:reset '{"key":"<KEY>"}'""",
             ["components/providers/configuration-check.tsx", "Explains a missing environment variable instead of crashing"],
             ["hooks/use-safe-search-params.ts", "A null-safe `useSearchParams()`"],
             ["lib/upload-dir.ts", "The upload directory for local and serverless runtimes"],
+            ["lib/razorpay.ts", "The Razorpay client (orders + signature verification)"],
+            ["convex/razorpay.ts", "The Razorpay order and payment functions"],
+            ["app/api/webhooks/razorpay/route.ts", "The Razorpay webhook"],
+            ["convex/devAuth.ts", "The gated development sign-in"],
+            ["convex/devAuthInternal.ts", "The internal functions of the development sign-in"],
+            ["lib/dev-auth.ts", "The client side of the development sign-in"],
+            ["app/(dev)/dev/signin/page.tsx", "The development sign-in page"],
+            ["components/page/public-comments.tsx", "The comment thread of a published page"],
+            ["components/database/permissions-panel.tsx", "The permissions of a database"],
+            ["tests/platform.test.ts", "Razorpay, public comments, permissions and the dev gate"],
             ["lib/markdown.ts", "The Markdown → blocks converter"],
             ["components/page/import-markdown-modal.tsx", "The Markdown import dialog"],
             ["components/page/linked-mentions.tsx", "The linked mentions panel"],

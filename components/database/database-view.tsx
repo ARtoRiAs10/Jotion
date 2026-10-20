@@ -30,6 +30,7 @@ import {
 import { RenameDialog } from "@/components/sidebar/rename-dialog";
 import { DatabaseProperty, PropertyCell } from "./property-cell";
 import { AutomationsPanel } from "./automations-panel";
+import { PermissionsPanel } from "./permissions-panel";
 import { PropertyEditor } from "./property-editor";
 import {
   Dialog,
@@ -443,7 +444,7 @@ export const DatabaseView = ({ databaseId }: { databaseId: Id<"documents"> }) =>
                 <Button variant="outline" size="sm" className="h-7 text-xs">
                   Filter
                   {viewType === "table" && (
-        <div className="mb-4">
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
           <AutomationsPanel
             databaseId={databaseId}
             properties={properties.map((property) => ({
@@ -451,6 +452,10 @@ export const DatabaseView = ({ databaseId }: { databaseId: Id<"documents"> }) =>
               name: property.name,
               type: property.type,
             }))}
+          />
+          <PermissionsPanel
+            databaseId={databaseId}
+            currentPermission={(data as { permission?: string }).permission}
           />
         </div>
       )}
@@ -510,7 +515,7 @@ export const DatabaseView = ({ databaseId }: { databaseId: Id<"documents"> }) =>
       </div>
 
       {viewType === "table" && (
-        <div className="mb-4">
+        <div className="mb-4 grid gap-4 lg:grid-cols-2">
           <AutomationsPanel
             databaseId={databaseId}
             properties={properties.map((property) => ({
@@ -518,6 +523,10 @@ export const DatabaseView = ({ databaseId }: { databaseId: Id<"documents"> }) =>
               name: property.name,
               type: property.type,
             }))}
+          />
+          <PermissionsPanel
+            databaseId={databaseId}
+            currentPermission={(data as { permission?: string }).permission}
           />
         </div>
       )}

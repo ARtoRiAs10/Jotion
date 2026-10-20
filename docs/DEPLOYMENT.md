@@ -44,6 +44,38 @@ npx convex env set KEY value    # set an environment variable
 npx convex logs                 # tail the logs
 ```
 
+### Payments (Razorpay)
+
+```bash
+npx convex env set RAZORPAY_KEY_ID rzp_test_xxx
+npx convex env set RAZORPAY_KEY_SECRET xxx
+npx convex env set RAZORPAY_WEBHOOK_SECRET xxx
+```
+
+Add `NEXT_PUBLIC_RAZORPAY_KEY_ID` to the Vercel project and point the webhook
+of the Razorpay dashboard to `https://<your-domain>/api/webhooks/razorpay`
+(event: *payment.captured*).
+
+### The development sign-in (never in production)
+
+A sign-in that works without a Clerk account, so the app can be tested
+quickly. It is **not public**:
+
+* `ALLOW_DEV_AUTH=true` has to be set on the **development** deployment —
+  the production deployment simply has no such variable and every function
+  refuses to run,
+* the tokens are signed with the JWT secret of the deployment
+  (`npx convex env set DEV_AUTH_SECRET <the JWT secret from the Convex
+  dashboard → Settings → API Keys>`),
+* the page is at `/dev/signin` and is not linked anywhere in the app.
+
+```bash
+npx convex env set ALLOW_DEV_AUTH true
+npx convex env set DEV_AUTH_SECRET "<the JWT secret>"
+npx convex run devAuth:seed '{}'      # creates Ada, Linus and Grace
+npx convex run devAuth:status '{}'    # shows what is still missing
+```
+
 ### The demo helpers
 
 The `demo` module seeds a workspace and runs a self-check. It only works
@@ -67,6 +99,10 @@ npx convex run demo:reset '{"key":"<KEY>"}'
 | `NEXT_PUBLIC_CONVEX_URL` | Vercel | `https://impartial-nightingale-31.convex.cloud` |
 | `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` | Vercel | from the Clerk dashboard |
 | `ANTHROPIC_API_KEY` *(optional)* | Vercel | enables the AI writing assistant |
+| `NEXT_PUBLIC_RAZORPAY_KEY_ID` *(optional)* | Vercel | enables the Razorpay checkout (without it the demo card form is used) |
+| `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` | Convex | the Razorpay credentials — the secret never reaches the browser |
+| `RAZORPAY_WEBHOOK_SECRET` | Convex | verifies the webhooks of Razorpay |
+| `RAZORPAY_INR_PER_USD` | Convex | the rate used to convert the USD price into INR (default 83) |
 | `EDGE_STORE_ACCESS_KEY` / `EDGE_STORE_SECRET_KEY` *(optional)* | Vercel | durable file storage (without them uploads fall back to `/tmp`, which is ephemeral) |
 
 Without the Clerk key the app shows a **“Jotion needs a little configuration”**

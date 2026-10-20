@@ -2,10 +2,13 @@ import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
 import { mutation, query } from "./_generated/server";
 import {
+  DatabasePermission,
+  getDatabasePermission,
   getIdentity,
   getUserId,
   identityName,
   logActivity,
+  requireDatabasePermission,
   requireMembership,
 } from "./helpers";
 import { getPlan } from "../lib/plans";
@@ -98,8 +101,17 @@ export const getDatabase = query({
     const database = await ctx.db.get(args.databaseId);
     if (!database) throw new Error("Not found");
 
+    let role: "owner" | "admin" | "member" | "guest" = "member";
     if (database.workspaceId) {
-      await requireMembership(ctx, database.workspaceId);
+      const { membership } = await requireMembership(ctx, database.workspaceId);
+      role = membership.role as "owner" | "admin" | "member" | "guest";
+      await requireDatabasePermission(
+        ctx,
+        args.databaseId,
+        await getUserId(ctx),
+        role,
+        "view",
+      );
     }
 
     const properties = await ctx.db
@@ -232,6 +244,12 @@ export const getDatabase = query({
       properties: properties.sort((a, b) => a.order - b.order),
       views: views.sort((a, b) => a.order - b.order),
       rows: rowProperties,
+      permission: await getDatabasePermission(
+        ctx,
+        args.databaseId,
+        await getUserId(ctx),
+        role,
+      ),
     };
   },
 });
@@ -249,6 +267,17 @@ export const addProperty = mutation({
     if (!database) throw new Error("Not found");
     if (database.workspaceId) {
       await requireMembership(ctx, database.workspaceId);
+    }
+
+    if (database.workspaceId) {
+      const { membership } = await requireMembership(ctx, database.workspaceId);
+      await requireDatabasePermission(
+        ctx,
+        args.databaseId,
+        userId,
+        membership.role as "owner" | "admin" | "member" | "guest",
+        "edit",
+      );
     }
 
     const existing = await ctx.db
@@ -337,6 +366,17 @@ export const createRow = mutation({
       await requireMembership(ctx, database.workspaceId);
     }
 
+    if (database.workspaceId) {
+      const { membership } = await requireMembership(ctx, database.workspaceId);
+      await requireDatabasePermission(
+        ctx,
+        args.databaseId,
+        userId,
+        membership.role as "owner" | "admin" | "member" | "guest",
+        "edit",
+      );
+    }
+
     const timestamp = Date.now();
     const rowId = await ctx.db.insert("documents", {
       title: args.title ?? "Untitled",
@@ -387,8 +427,22 @@ export const setRowValue = mutation({
     options: v.optional(v.array(v.string())),
   },
   handler: async (ctx, args) => {
-    await getUserId(ctx);
+    const userId = await getUserId(ctx);
     const row = await ctx.db.get(args.documentId);
+    if (row?.parentDocument) {
+      const database = row.parentDocument;
+      const parent = await ctx.db.get(database);
+      if (parent?.workspaceId) {
+        const { membership } = await requireMembership(ctx, parent.workspaceId);
+        await requireDatabasePermission(
+          ctx,
+          database,
+          userId,
+          membership.role as "owner" | "admin" | "member" | "guest",
+          "edit",
+        );
+      }
+    }
     const existing = await ctx.db
       .query("pageProperties")
       .withIndex("by_document", (q) => q.eq("documentId", args.documentId))
@@ -625,6 +679,170 @@ export const reorderViews = mutation({
     const b = sorted[target];
     await ctx.db.patch(a._id, { order: b.order });
     await ctx.db.patch(b._id, { order: a.order });
+    return true;
+  },
+});
+
+/* ------------------------------------------------------------------ */
+/*  Permissions                                                        */
+/* ------------------------------------------------------------------ */
+
+/** The people who have a special permission for a database. */
+export const listAccess = query({
+  args: { databaseId: v.id("documents") },
+  handler: async (ctx, args) => {
+    await getUserId(ctx);
+    const entries = await ctx.db
+      .query("databaseAccess")
+      .withIndex("by_database", (q) => q.eq("databaseId", args.databaseId))
+      .collect();
+
+    const withUsers = await Promise.all(
+      entries.map(async (entry) => {
+        const user = await ctx.db
+          .query("users")
+          .withIndex("by_clerk", (q) => q.eq("clerkId", entry.userId))
+          .first();
+        return {
+          _id: entry._id,
+          userId: entry.userId,
+          email: entry.email ?? user?.email,
+          name: user?.name ?? entry.email ?? "Member",
+          avatarUrl: user?.avatarUrl,
+          permission: entry.permission,
+          createdAt: entry.createdAt,
+        };
+      }),
+    );
+
+    return withUsers;
+  },
+});
+
+/** Sets the default permission of a database for the whole workspace. */
+export const setDefaultPermission = mutation({
+  args: {
+    databaseId: v.id("documents"),
+    permission: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await getIdentity(ctx);
+    const database = await ctx.db.get(args.databaseId);
+    if (!database) throw new Error("Not found");
+
+    if (database.workspaceId) {
+      await requireMembership(ctx, database.workspaceId);
+      const { membership } = await requireMembership(ctx, database.workspaceId);
+      if (membership.role !== "owner" && membership.role !== "admin") {
+        throw new Error("Only owners and admins can change the permissions");
+      }
+    }
+
+    const permission = ["none", "view", "comment", "edit"].includes(
+      args.permission,
+    )
+      ? args.permission
+      : "edit";
+
+    await ctx.db.patch(args.databaseId, { dbPermission: permission });
+
+    await logActivity(ctx, {
+      workspaceId: database.workspaceId,
+      userId: identity.subject,
+      userName: identityName(identity),
+      action: "database.permission_changed",
+      documentId: args.databaseId,
+      metadata: { permission },
+    });
+
+    return permission;
+  },
+});
+
+/** Gives one person a permission for the database. */
+export const setAccess = mutation({
+  args: {
+    databaseId: v.id("documents"),
+    userId: v.optional(v.string()),
+    email: v.optional(v.string()),
+    permission: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const identity = await getIdentity(ctx);
+    const database = await ctx.db.get(args.databaseId);
+    if (!database) throw new Error("Not found");
+
+    if (database.workspaceId) {
+      await requireMembership(ctx, database.workspaceId);
+      const { membership } = await requireMembership(ctx, database.workspaceId);
+      if (membership.role !== "owner" && membership.role !== "admin") {
+        throw new Error("Only owners and admins can share a database");
+      }
+    }
+
+    const permission = ["view", "comment", "edit"].includes(args.permission)
+      ? args.permission
+      : "view";
+    const targetUserId =
+      args.userId ?? (args.email ? `pending:${args.email.toLowerCase()}` : undefined);
+    if (!targetUserId) {
+      throw new Error("A user or an e-mail address is required");
+    }
+
+    const existing = await ctx.db
+      .query("databaseAccess")
+      .withIndex("by_database", (q) => q.eq("databaseId", args.databaseId))
+      .filter((q) => q.eq(q.field("userId"), targetUserId))
+      .first();
+
+    if (existing) {
+      await ctx.db.patch(existing._id, {
+        permission,
+        email: args.email?.toLowerCase() ?? existing.email,
+      });
+      return existing._id;
+    }
+
+    const id = await ctx.db.insert("databaseAccess", {
+      databaseId: args.databaseId,
+      userId: targetUserId,
+      email: args.email?.toLowerCase(),
+      permission,
+      grantedBy: identity.subject,
+      createdAt: Date.now(),
+    });
+
+    await logActivity(ctx, {
+      workspaceId: database.workspaceId,
+      userId: identity.subject,
+      userName: identityName(identity),
+      action: "database.access_granted",
+      documentId: args.databaseId,
+      metadata: { permission, email: args.email },
+    });
+
+    return id;
+  },
+});
+
+/** Removes a special permission. */
+export const removeAccess = mutation({
+  args: { accessId: v.id("databaseAccess") },
+  handler: async (ctx, args) => {
+    const identity = await getIdentity(ctx);
+    const entry = await ctx.db.get(args.accessId);
+    if (!entry) throw new Error("Not found");
+    const database = await ctx.db.get(entry.databaseId);
+    if (!database) throw new Error("Not found");
+
+    if (database.workspaceId) {
+      const { membership } = await requireMembership(ctx, database.workspaceId);
+      if (membership.role !== "owner" && membership.role !== "admin") {
+        throw new Error("Only owners and admins can share a database");
+      }
+    }
+
+    await ctx.db.delete(args.accessId);
     return true;
   },
 });

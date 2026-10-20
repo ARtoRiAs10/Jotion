@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/convex/_generated/api";
-import { useMutation, useQuery } from "convex/react";
+import { useAction, useMutation, useQuery } from "convex/react";
 import {
   ArrowLeft,
   Check,
@@ -26,6 +26,7 @@ import {
   getPlan,
   toCents,
 } from "@/lib/plans";
+import { razorpayOptions } from "@/lib/razorpay";
 
 interface Session {
   sessionId: string;
@@ -79,6 +80,8 @@ const CheckoutPage = () => {
   const completeCheckout = useMutation(api.billing.completeCheckout);
   const cancelCheckout = useMutation(api.billing.cancelCheckout);
   const addPaymentMethod = useMutation(api.billing.addPaymentMethod);
+  const createRazorpayOrder = useAction(api.razorpay.createOrder);
+  const verifyRazorpayPayment = useMutation(api.razorpay.verifyPayment);
 
   const [step, setStep] = useState<"details" | "payment">("details");
   const [session, setSession] = useState<Session | null>(null);
@@ -88,8 +91,11 @@ const CheckoutPage = () => {
   const [couponError, setCouponError] = useState<string | undefined>();
   const [processing, setProcessing] = useState(false);
   const [card, setCard] = useState({ number: "", expiry: "", cvc: "", name: "" });
+  const [paying, setPaying] = useState(false);
 
   const plan = getPlan(planId);
+  // Razorpay is used when it is configured, otherwise the demo card form.
+  const razorpayEnabled = Boolean(process.env.NEXT_PUBLIC_RAZORPAY_KEY_ID);
 
   const quote = useQuery(
     api.billing.quote,
@@ -166,6 +172,58 @@ const CheckoutPage = () => {
       );
     } finally {
       setProcessing(false);
+    }
+  };
+
+  /**
+   * Pays with Razorpay. The order is created on the server, the browser
+   * widget collects the payment and the signature is verified on the server
+   * before the subscription is activated.
+   */
+  const onPayWithRazorpay = async () => {
+    if (!session) return;
+    setPaying(true);
+    try {
+      const order = await createRazorpayOrder({
+        invoiceId: session.sessionId as never,
+      });
+
+      const script = document.createElement("script");
+      script.src = "https://checkout.razorpay.com/v1/checkout.js";
+      script.onload = () => {
+        type RazorpayInstance = { open: () => void };
+        type RazorpayConstructor = new (options: unknown) => RazorpayInstance;
+        const razorpay = (window as unknown as { Razorpay: RazorpayConstructor })
+          .Razorpay;
+        new razorpay(
+          razorpayOptions({
+            keyId: order.keyId,
+            orderId: order.orderId,
+            amountInPaise: order.amount,
+            name: "Jotion",
+            description: `${plan.name} plan — ${seats} seat${seats === 1 ? "" : "s"}`,
+            email: undefined,
+            handler: async (payment) => {
+              await verifyRazorpayPayment({
+                invoiceId: session.sessionId as never,
+                razorpayOrderId: payment.razorpay_order_id,
+                razorpayPaymentId: payment.razorpay_payment_id,
+                razorpaySignature: payment.razorpay_signature,
+              });
+              toast.success(
+                `Welcome to ${plan.name}! Your workspace has been upgraded.`,
+              );
+              router.push("/settings?tab=billing");
+            },
+          }),
+        ).open();
+      };
+      document.body.appendChild(script);
+    } catch (error) {
+      toast.error(
+        error instanceof Error ? error.message : "The payment could not be started",
+      );
+      setPaying(false);
     }
   };
 
@@ -358,19 +416,31 @@ const CheckoutPage = () => {
                 />
               </div>
 
-              <Button
-                className="w-full"
-                size="lg"
-                disabled={processing || !session}
-                onClick={onPay}
-              >
-                {processing ? "Processing…" : `Pay ${formatMoney(total)}`}
-              </Button>
+              {razorpayEnabled ? (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={processing || paying || !session}
+                  onClick={onPayWithRazorpay}
+                >
+                  {paying ? "Opening Razorpay…" : `Pay ${formatMoney(total)}`}
+                </Button>
+              ) : (
+                <Button
+                  className="w-full"
+                  size="lg"
+                  disabled={processing || !session}
+                  onClick={onPay}
+                >
+                  {processing ? "Processing…" : `Pay ${formatMoney(total)}`}
+                </Button>
+              )}
 
               <p className="flex items-center justify-center gap-1.5 text-[11px] text-muted-foreground">
                 <Lock className="h-3 w-3" />
-                Secure checkout. This is a demo environment — no real card is
-                charged.
+                {razorpayEnabled
+                  ? "You are redirected to Razorpay — the payment is verified before the plan is activated."
+                  : "Secure checkout. This is a demo environment — no real card is charged."}
               </p>
             </div>
           )}

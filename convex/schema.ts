@@ -102,6 +102,12 @@ export default defineSchema({
      * the content of the source page and updates automatically.
      */
     syncedFrom: v.optional(v.id("documents")),
+    /**
+     * The default permission of a database for the members of the workspace:
+     * "view", "comment" or "none". Individual people can be given a
+     * different permission through the `databaseAccess` table.
+     */
+    dbPermission: v.optional(v.string()),
   })
     .index("by_user", ["userId"])
     .index("by_user_parent", ["userId", "parentDocument"])
@@ -162,6 +168,8 @@ export default defineSchema({
     parentId: v.optional(v.id("comments")),
     resolved: v.optional(v.boolean()),
     mentions: v.optional(v.array(v.string())),
+    /** True for comments that were written by an anonymous visitor. */
+    isPublic: v.optional(v.boolean()),
   })
     .index("by_document", ["documentId"]),
 
@@ -272,6 +280,10 @@ export default defineSchema({
     paidAt: v.optional(v.number()),
     /** Set for scheduled (downgrade) invoices that are not due yet. */
     scheduledFor: v.optional(v.number()),
+    /** The Razorpay order this invoice was paid with. */
+    razorpayOrderId: v.optional(v.string()),
+    /** The Razorpay payment id. */
+    razorpayPaymentId: v.optional(v.string()),
   })
     .index("by_workspace", ["workspaceId"]),
 
@@ -311,6 +323,34 @@ export default defineSchema({
     createdAt: v.number(),
   })
     .index("by_workspace", ["workspaceId"]),
+
+  /**
+   * Per person permissions for a database.
+   */
+  databaseAccess: defineTable({
+    databaseId: v.id("documents"),
+    /** The Clerk user id, or `pending:<email>` for people without an account. */
+    userId: v.string(),
+    email: v.optional(v.string()),
+    /** view | comment | edit */
+    permission: v.string(),
+    grantedBy: v.optional(v.string()),
+    createdAt: v.number(),
+  })
+    .index("by_database", ["databaseId"])
+    .index("by_user", ["userId"]),
+
+  /**
+   * The people that can use the development sign-in. This table is only
+   * read by the development deployment.
+   */
+  devUsers: defineTable({
+    userId: v.string(),
+    name: v.string(),
+    email: v.optional(v.string()),
+    avatarUrl: v.optional(v.string()),
+    createdAt: v.number(),
+  }).index("by_user", ["userId"]),
 
   /**
    * The collaborative editing state of a page: the Yjs updates of the

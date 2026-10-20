@@ -99,6 +99,62 @@ export const add = mutation({
   },
 });
 
+/**
+ * A comment of an anonymous visitor of a published page.
+ *
+ * The page has to be published with the "Can comment" access, the visitor
+ * only needs a name — no account is required.
+ */
+export const addPublic = mutation({
+  args: {
+    documentId: v.id("documents"),
+    name: v.string(),
+    body: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const document = await ctx.db.get(args.documentId);
+    if (!document) throw new Error("Not found");
+    if (!document.isPublished || document.publicAccess !== "comment") {
+      throw new Error("This page does not accept comments");
+    }
+
+    const name = args.name.trim().slice(0, 60);
+    const body = args.body.trim().slice(0, 2000);
+    if (!name || !body) {
+      throw new Error("A name and a comment are required");
+    }
+
+    // A very simple guard against spam: no links and not too many comments.
+    if (/https?:\/\//i.test(body)) {
+      throw new Error("Links are not allowed in comments");
+    }
+
+    const recent = await ctx.db
+      .query("comments")
+      .withIndex("by_document", (q) => q.eq("documentId", args.documentId))
+      .collect();
+    const lastFiveMinutes = Date.now() - 5 * 60 * 1000;
+    const recentCount = recent.filter(
+      (comment) => comment.createdAt > lastFiveMinutes,
+    ).length;
+    if (recentCount >= 5) {
+      throw new Error("Too many comments — please try again in a moment");
+    }
+
+    const id = await ctx.db.insert("comments", {
+      documentId: args.documentId,
+      authorId: "public",
+      authorName: name,
+      body,
+      createdAt: Date.now(),
+      resolved: false,
+      isPublic: true,
+    });
+
+    return id;
+  },
+});
+
 export const update = mutation({
   args: { id: v.id("comments"), body: v.string() },
   handler: async (ctx, args) => {

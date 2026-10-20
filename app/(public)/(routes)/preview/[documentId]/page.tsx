@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import dynamic from "next/dynamic";
 import { useMemo, useState } from "react";
 
+import { PublicComments } from "@/components/page/public-comments";
 import { api } from "@/convex/_generated/api";
 import { Id } from "@/convex/_generated/dataModel";
 import { useMutation, useQuery } from "convex/react";
@@ -114,6 +115,11 @@ const DocumentIdPage = ({ params }: DocumentIdPageProps) => {
           <Editor editable={false} onChange={() => undefined} initialContent={document.content} />
         </div>
       </div>
+      <PublicComments
+        documentId={params.documentId}
+        canComment={document.publicAccess === "comment"}
+      />
+
       <div className="mt-16 flex items-center justify-center gap-2 text-xs text-muted-foreground">
         <span>Published with</span>
         <span className="font-semibold text-foreground">Jotion</span>

@@ -36,6 +36,12 @@ upgrades, scheduled downgrades and feature gating).
   selection (or the whole page). Works with Anthropic or any OpenAI-compatible
   provider — set `ANTHROPIC_API_KEY` or `OPENAI_API_KEY`.
 
+### Payments
+- **Razorpay** – the checkout creates a Razorpay order, the payment is verified
+  on the server (HMAC-SHA256) before the subscription is activated, and webhooks
+  are handled at `/api/webhooks/razorpay`. Without credentials the demo card
+  form is used.
+
 ### Pages
 - **Block editor** (BlockNote) with slash commands, headings, lists, to-dos, code,
   tables, images, uploads, drag & drop and keyboard shortcuts.
@@ -59,6 +65,7 @@ upgrades, scheduled downgrades and feature gating).
   notifications.
 - **Public sharing** – publish a page to the web with `Restricted / Can view /
   Can comment / Can edit` access, optionally protected by a **password**.
+  Published pages can collect **comments from visitors** — no account needed.
 - **Page level access** – a page can be *restricted* to specific people, each with
   their own permission (`Can view / Can comment / Can edit`).
 - **Export** – download any page as Markdown.
@@ -70,6 +77,8 @@ upgrades, scheduled downgrades and feature gating).
 - **Automations** – when a row property reaches a value, set another property or
   notify the team (plan limited: Free none, Plus 5 per database, Business ∞).
 - **CSV import / export** and **Markdown import**.
+- **Per-database permissions** – a default permission for the workspace plus a
+  permission for individual people, enforced on the server.
 - Typed columns: text, number, select, multi-select, date, checkbox, person, url,
   email, phone and **formula**.
 - **Property editor** – rename a column, change its type, edit the options of a
@@ -119,6 +128,14 @@ upgrades, scheduled downgrades and feature gating).
   through a provider agnostic mailer (Resend, with a log fallback).
 
 ---
+
+## Development sign-in (testing)
+
+`/dev/signin` signs you in as a test user without a Clerk account. It only
+works on a deployment that has `ALLOW_DEV_AUTH=true` and the JWT secret of the
+deployment — the production deployment has neither, so the page is empty there
+and the page is not linked anywhere in the app. See
+[`docs/DEPLOYMENT.md`](./docs/DEPLOYMENT.md).
 
 ## Deploying to Vercel
 
@@ -180,7 +197,7 @@ npm run build      # production build
 npm run start      # run the production build
 npm run lint       # eslint
 npm run typecheck  # tsc --noEmit
-npm test           # 84 automated tests (Vitest + an in-memory Convex backend)
+npm test           # 100 automated tests (Vitest + an in-memory Convex backend)
 npm run check:assets # verifies that every route serves its JavaScript and CSS
 npm run verify     # the full pre-deployment check (typecheck, lint, tests,
                    # build, asset check and Vercel compatibility)

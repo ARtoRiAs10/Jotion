@@ -1,6 +1,13 @@
 import { v } from "convex/values";
 import { Id } from "./_generated/dataModel";
-import { MutationCtx, QueryCtx, mutation, query } from "./_generated/server";
+import {
+  MutationCtx,
+  QueryCtx,
+  internalMutation,
+  internalQuery,
+  mutation,
+  query,
+} from "./_generated/server";
 import {
   getIdentity,
   getUserId,
@@ -201,6 +208,48 @@ export const getSubscription = query({
       coupons,
       features: plan.features,
     };
+  },
+});
+
+/**
+ * Validates a checkout session — used by the Razorpay action (an action
+ * cannot read the database itself).
+ */
+export const getCheckoutInvoice = internalQuery({
+  args: { invoiceId: v.id("invoices") },
+  handler: async (ctx, args) => {
+    const identity = await getIdentity(ctx);
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) throw new Error("Invoice not found");
+    if (invoice.status !== "open") {
+      throw new Error("This checkout session has expired");
+    }
+    await requireRole(ctx, invoice.workspaceId, ["owner"]);
+
+    return {
+      invoiceId: invoice._id,
+      amount: invoice.amount,
+      plan: invoice.plan,
+      cycle: invoice.cycle,
+      seats: invoice.seats,
+      invoiceNumber: invoice.invoiceNumber,
+      email: identity.email ?? undefined,
+      name: identityName(identity),
+    };
+  },
+});
+
+/** Stores the Razorpay order on the invoice. */
+export const attachRazorpayOrder = internalMutation({
+  args: {
+    invoiceId: v.id("invoices"),
+    orderId: v.string(),
+  },
+  handler: async (ctx, args) => {
+    const invoice = await ctx.db.get(args.invoiceId);
+    if (!invoice) throw new Error("Invoice not found");
+    await ctx.db.patch(args.invoiceId, { razorpayOrderId: args.orderId });
+    return true;
   },
 });
 
