@@ -1674,6 +1674,9 @@ def build_updates_and_next_steps(path: Path):
             ["6", "The `useAuth` cast in `convex-provider.tsx` was masking a Clerk type mismatch", "The app would break on the next Clerk upgrade", "Clerk upgraded to 5.61, the cast removed"],
             ["7", "The audit log loaded the complete history in one query", "Large workspaces became slow and could exhaust memory", "Cursor pagination with a *Load more* button"],
             ["8", "A production build overwrote the dev server's `.next` directory", "**Every page returned 200 while all of its JavaScript and CSS returned 404 — the site looked broken**", "The dev server writes to `.next-dev` (`distDir`), plus `scripts/check-assets.mjs` in CI"],
+            ["9", "`useSearchParams()` returns `null` while a route is statically rendered", "**The deployed app crashed with *“Cannot read properties of null (reading 'get')”*** on the pricing, settings and checkout pages", "`useSafeSearchParams()` always returns a `URLSearchParams` (regression test included)"],
+            ["10", "The Clerk provider throws when the publishable key is missing", "A deployment without `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` returned a 500 for every page", "`<ConfigurationCheck />` renders a setup screen that lists the missing variables"],
+            ["11", "The local upload fallback wrote into the project directory", "The Vercel build referenced files from the local file system and failed", "On serverless platforms the fallback writes to `/tmp`"],
         ],
     )
 
@@ -1699,6 +1702,41 @@ def build_updates_and_next_steps(path: Path):
             "usage meters.",
             "**Run the full check** — `npm test && npm run typecheck && npm run "
             "lint && npm run build`.",
+        ],
+    )
+
+    document.add_heading("5.1.1 Deployment status", level=2)
+    add_table(
+        document,
+        ["Part", "Status", "Details"],
+        [
+            [
+                "Convex backend",
+                "DEPLOYED",
+                "The production deployment `impartial-nightingale-31` runs the functions and the schema (18 tables). The demo self-check passes on it.",
+            ],
+            [
+                "Web app",
+                "READY",
+                "`vercel.json`, `.vercelignore` and `.env.production` are in place and the Vercel compatibility check passes. A temporary preview deployment was created to validate the build; a permanent deployment needs the Vercel account (see below).",
+            ],
+            [
+                "GitHub",
+                "PUSHED",
+                "Every commit is on the `v2` branch of the repository; the CI workflow runs the full verification on every push.",
+            ],
+        ],
+    )
+    add_paragraph(
+        document,
+        "**The three manual steps** (they need your accounts):",
+    )
+    add_numbered(
+        document,
+        [
+            "**Clerk** — copy the publishable key of your production instance and add it to the Vercel project as `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`. Without it the app shows a setup screen instead of crashing.",
+            "**Vercel** — `npx vercel login && npx vercel link`, add the two environment variables and run `npx vercel --prod` (or install the Vercel GitHub app and let every push deploy).",
+            "**Storage (optional)** — add `EDGE_STORE_ACCESS_KEY` and `EDGE_STORE_SECRET_KEY` so that uploads are durable; without them the local fallback writes to `/tmp`, which is wiped on every serverless instance.",
         ],
     )
 
@@ -1868,6 +1906,10 @@ npx convex run demo:reset '{"key":"<KEY>"}'""",
             ["vercel.json", "The Vercel configuration"],
             [".vercelignore", "The files that are not uploaded to Vercel"],
             ["scripts/verify-build.mjs", "The full pre-deployment check"],
+            ["docs/DEPLOYMENT.md", "The step-by-step deployment guide"],
+            ["components/providers/configuration-check.tsx", "Explains a missing environment variable instead of crashing"],
+            ["hooks/use-safe-search-params.ts", "A null-safe `useSearchParams()`"],
+            ["lib/upload-dir.ts", "The upload directory for local and serverless runtimes"],
             ["lib/markdown.ts", "The Markdown → blocks converter"],
             ["components/page/import-markdown-modal.tsx", "The Markdown import dialog"],
             ["components/page/linked-mentions.tsx", "The linked mentions panel"],
