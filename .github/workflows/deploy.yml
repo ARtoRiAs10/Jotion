@@ -1,0 +1,83 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Target environment"
+        required: true
+        default: "production"
+        type: choice
+        options: [production, preview]
+
+# Only one deployment at a time.
+concurrency:
+  group: deploy-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  convex:
+    name: Deploy the Convex backend
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy the functions and the schema
+        if: github.event.inputs.environment != 'preview'
+        run: npx convex deploy --prod
+        env:
+          CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_DEPLOYMENT }}
+          CONVEX_ACCESS_TOKEN: ${{ secrets.CONVEX_ACCESS_TOKEN }}
+
+      - name: Deploy to the preview deployment
+        if: github.event.inputs.environment == 'preview'
+        run: npx convex deploy
+        env:
+          CONVEX_DEPLOYMENT: ${{ secrets.CONVEX_PREVIEW_DEPLOYMENT }}
+          CONVEX_ACCESS_TOKEN: ${{ secrets.CONVEX_ACCESS_TOKEN }}
+
+  web:
+    name: Deploy the web app
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    needs: [convex]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+        env:
+          NEXT_PUBLIC_CONVEX_URL: ${{ secrets.NEXT_PUBLIC_CONVEX_URL }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY }}
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+
+      - name: Deploy to Vercel
+        if: secrets.VERCEL_TOKEN != ''
+        uses: amondnet/vercel-action@v25
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          vercel-args: "--prebuilt --prod"
+          working-directory: .vercel/output

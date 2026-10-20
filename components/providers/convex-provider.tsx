@@ -5,10 +5,14 @@ import { ConvexReactClient } from "convex/react"
 import { ConvexProviderWithClerk } from "convex/react-clerk"
 import { ReactNode } from "react"
 
-const convex = new ConvexReactClient(process.env.NEXT_PUBLIC_CONVEX_URL!)
+// Falls back to a placeholder so that the app can be built without a
+// Convex deployment. Set NEXT_PUBLIC_CONVEX_URL in your environment.
+const convex = new ConvexReactClient(
+    process.env.NEXT_PUBLIC_CONVEX_URL ?? "https://jotion.convex.cloud",
+)
 
 export const ConvexClientProvider = ({
-    children 
+    children
 
 } : {
     children: ReactNode;

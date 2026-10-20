@@ -1,5 +1,3 @@
-/* prettier-ignore-start */
-
 /* eslint-disable */
 /**
  * Generated `api` utility.
@@ -10,31 +8,68 @@
  * @module
  */
 
+import type * as activity from "../activity.js";
+import type * as ai from "../ai.js";
+import type * as billing from "../billing.js";
+import type * as collaboration from "../collaboration.js";
+import type * as comments from "../comments.js";
+import type * as databases from "../databases.js";
+import type * as demo from "../demo.js";
+import type * as documents from "../documents.js";
+import type * as helpers from "../helpers.js";
+import type * as mail from "../mail.js";
+import type * as templates from "../templates.js";
+import type * as users from "../users.js";
+import type * as versions from "../versions.js";
+import type * as workspaces from "../workspaces.js";
+
 import type {
   ApiFromModules,
   FilterApi,
   FunctionReference,
 } from "convex/server";
-import type * as documents from "../documents.js";
+
+declare const fullApi: ApiFromModules<{
+  activity: typeof activity;
+  ai: typeof ai;
+  billing: typeof billing;
+  collaboration: typeof collaboration;
+  comments: typeof comments;
+  databases: typeof databases;
+  demo: typeof demo;
+  documents: typeof documents;
+  helpers: typeof helpers;
+  mail: typeof mail;
+  templates: typeof templates;
+  users: typeof users;
+  versions: typeof versions;
+  workspaces: typeof workspaces;
+}>;
 
 /**
- * A utility for referencing Convex functions in your app's API.
+ * A utility for referencing Convex functions in your app's public API.
  *
  * Usage:
  * ```js
  * const myFunctionReference = api.myModule.myFunction;
  * ```
  */
-declare const fullApi: ApiFromModules<{
-  documents: typeof documents;
-}>;
 export declare const api: FilterApi<
   typeof fullApi,
   FunctionReference<any, "public">
 >;
+
+/**
+ * A utility for referencing Convex functions in your app's internal API.
+ *
+ * Usage:
+ * ```js
+ * const myFunctionReference = internal.myModule.myFunction;
+ * ```
+ */
 export declare const internal: FilterApi<
   typeof fullApi,
   FunctionReference<any, "internal">
 >;
 
-/* prettier-ignore-end */
+export declare const components: {};

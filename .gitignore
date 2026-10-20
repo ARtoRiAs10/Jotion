@@ -11,6 +11,7 @@
 .env
 # next.js
 /.next/
+/.next-dev/
 /out/
 
 /.trunk/
@@ -36,3 +37,5 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+# local file storage fallback
+.jotion-uploads

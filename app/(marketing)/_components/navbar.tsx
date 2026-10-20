@@ -25,6 +25,11 @@ export const Navbar = () => {
                 )}
                 {!isAuthenticated && !isLoading && (
                     <>
+                    <Button variant="ghost" size="sm" asChild>
+                        <Link href="/pricing">
+                            Pricing
+                        </Link>
+                    </Button>
                     
                     <SignInButton mode="modal">
                         <Button variant="ghost" size='sm'>
@@ -43,6 +48,12 @@ export const Navbar = () => {
 
                 {isAuthenticated && !isLoading && (
                     <>
+                    <Button variant="ghost" size="sm" asChild>
+                        <Link href="/pricing">
+                            Pricing
+                        </Link>
+
+                    </Button>
                     <Button variant="ghost" size="sm" asChild>
                         <Link href="/documents">
                             Enter Jotion

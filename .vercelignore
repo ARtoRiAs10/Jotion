@@ -1,0 +1,38 @@
+# Dependencies & build output
+node_modules
+.next
+.next-dev
+out
+build
+
+# Local data
+.jotion-uploads
+coverage
+reports
+
+# Documentation artefacts (they are built by the docs workflow)
+docs/*.docx
+
+# Environment
+.env
+.env.local
+.env*.local
+
+# Version control & CI
+.git
+.github
+.vscode
+.idea
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Misc
+.DS_Store
+*.pem
+*.tsbuildinfo
+next-env.d.ts
+mcp-test-server

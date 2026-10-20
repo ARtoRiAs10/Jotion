@@ -19,6 +19,10 @@ const geistMono = localFont({
   weight: "100 900",
 });
 
+// The workspace is a realtime, authenticated app — pages are rendered on
+// demand instead of being prerendered at build time.
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Jotion",
   description: "the conected workspace where better, faster work happens",

@@ -1,0 +1,81 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master, develop]
+  pull_request:
+    branches: [main, master, develop]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NEXT_TELEMETRY_DISABLED: "1"
+
+jobs:
+  verify:
+    name: Type check, lint, tests, build & assets
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run the full verification
+        run: npm run verify
+
+      - name: Upload the test report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-report
+          path: |
+            reports/
+            coverage/
+          if-no-files-found: ignore
+          retention-days: 7
+
+  docs:
+    name: Generate the documentation
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    needs: [verify]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install python-docx
+        run: pip install python-docx
+
+      - name: Generate the Word documents
+        run: python3 scripts/generate-docs.py
+
+      - name: Upload the documentation
+        uses: actions/upload-artifact@v4
+        with:
+          name: jotion-docs
+          path: docs/
+          retention-days: 14
