@@ -22,7 +22,8 @@ import {
   Plus,
   Sparkles,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useSafeSearchParams } from "@/hooks/use-safe-search-params";
 import { useState } from "react";
 import { toast } from "sonner";
 import {
@@ -41,7 +42,7 @@ import {
 
 const PricingPage = () => {
   const router = useRouter();
-  const params = useSearchParams();
+  const params = useSafeSearchParams();
   const { isAuthenticated, isLoading } = useConvexAuth();
   const [cycle, setCycle] = useState<BillingCycle>("monthly");
   const [seats, setSeats] = useState(1);

@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { resolveSearchParams } from "@/hooks/use-safe-search-params";
 
 const root = path.resolve(__dirname, "..");
 const config = readFileSync(path.join(root, "next.config.mjs"), "utf8");
@@ -17,6 +18,27 @@ describe("build configuration", () => {
   it("ignores the dev output directory in git", () => {
     const gitignore = readFileSync(path.join(root, ".gitignore"), "utf8");
     expect(gitignore).toContain("/.next-dev/");
+  });
+});
+
+describe("search parameters", () => {
+  it("never returns null — that used to crash the page", () => {
+    // Next.js returns null from useSearchParams() while a route is
+    // statically rendered. Calling .get() on it threw
+    // "Cannot read properties of null (reading 'get')".
+    const params = resolveSearchParams(null, "tab=billing&plan=plus");
+    expect(params).not.toBeNull();
+    expect(params.get("tab")).toBe("billing");
+    expect(params.get("plan")).toBe("plus");
+  });
+
+  it("passes real parameters through", () => {
+    const real = new URLSearchParams("a=1");
+    expect(resolveSearchParams(real)).toBe(real);
+  });
+
+  it("uses no parameters when there is nothing to work with", () => {
+    expect(resolveSearchParams(undefined, "").get("x")).toBeNull();
   });
 });
 

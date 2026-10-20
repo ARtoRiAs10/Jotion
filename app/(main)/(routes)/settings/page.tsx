@@ -16,7 +16,8 @@ import {
   UserPlus,
   Users,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useSafeSearchParams } from "@/hooks/use-safe-search-params";
 import { useEffect, useState } from "react";
 import { usePaginatedQuery } from "convex/react";
 import { toast } from "sonner";
@@ -33,7 +34,7 @@ const TABS = [
 
 const SettingsPage = () => {
   const router = useRouter();
-  const params = useSearchParams();
+  const params = useSafeSearchParams();
   const { workspaceId, workspace, isOwner, role, plan } = useWorkspace();
 
   const [tab, setTab] = useState(params.get("tab") ?? "general");

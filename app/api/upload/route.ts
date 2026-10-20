@@ -1,10 +1,9 @@
 import { mkdir, writeFile } from "fs/promises";
 import path from "path";
 import { NextResponse } from "next/server";
+import { uploadDirectory } from "@/lib/upload-dir";
 
 export const runtime = "nodejs";
-
-const UPLOAD_DIR = path.join(process.cwd(), ".jotion-uploads");
 
 /** Hard cap for a single upload (the per plan limit is enforced in the UI). */
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
@@ -28,7 +27,8 @@ export const POST = async (request: Request) => {
       );
     }
 
-    await mkdir(UPLOAD_DIR, { recursive: true });
+    const uploadDir = uploadDirectory();
+    await mkdir(uploadDir, { recursive: true });
 
     const extension = path.extname(file.name) || "";
     const id = `${Date.now().toString(36)}-${Math.random()
@@ -36,7 +36,7 @@ export const POST = async (request: Request) => {
       .slice(2, 10)}${extension}`;
 
     const buffer = Buffer.from(await file.arrayBuffer());
-    await writeFile(path.join(UPLOAD_DIR, id), buffer);
+    await writeFile(path.join(uploadDir, id), buffer);
 
     return NextResponse.json({ url: `/api/upload/${id}` });
   } catch (error) {

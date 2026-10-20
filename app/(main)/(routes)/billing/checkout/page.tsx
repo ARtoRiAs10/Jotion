@@ -15,7 +15,8 @@ import {
   ShieldCheck,
   Tag,
 } from "lucide-react";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { useSafeSearchParams } from "@/hooks/use-safe-search-params";
 import { useMemo, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -68,7 +69,7 @@ const detectBrand = (value: string) => {
 
 const CheckoutPage = () => {
   const router = useRouter();
-  const params = useSearchParams();
+  const params = useSafeSearchParams();
   const planId = params.get("plan") ?? "plus";
   const cycle = (params.get("cycle") ?? "monthly") as BillingCycle;
   const workspaceId = params.get("workspace") ?? undefined;
