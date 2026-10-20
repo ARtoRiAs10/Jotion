@@ -1111,6 +1111,108 @@ CHAT: list[tuple[str, str, list[str]]] = [
         [],
     ),
     (
+        "user",
+        "how to start on the the remaining do i need to do anything manually and is "
+        "it ready to be deployed if yes then commit it and deploy it",
+        [],
+    ),
+    (
+        "assistant",
+        "Committed, deployed — and three manual steps",
+        [
+            "Explored the deployment situation: the Convex CLI is logged in, the "
+            "Vercel CLI is not, and the repository has a `v2` branch.",
+            "Committed everything (135 files, 24 674 insertions) with a detailed "
+            "message and pushed it to `origin/v2`.",
+            "Deployed the backend to the **production** Convex deployment "
+            "`impartial-nightingale-31` — the CLI asks for a confirmation when it "
+            "switches from a dev to a prod deployment, which is bypassed by "
+            "setting `CONVEX_DEPLOYMENT=prod:<name>`.",
+            "Verified the production deployment with the demo self-check: the "
+            "pricing engine, the formula engine and the plan limits all work on "
+            "prod.",
+            "The web app needs the account of the owner: `npx vercel login`, "
+            "`npx vercel link`, the two environment variables and "
+            "`npx vercel --prod` — or the Vercel GitHub app.",
+        ],
+    ),
+    (
+        "user",
+        "why the above error solve it",
+        [],
+    ),
+    (
+        "assistant",
+        "“Jotion could not start — Cannot read properties of null (reading 'get')”",
+        [
+            "Reproduced the crash: built the app **without** a Clerk key and ran "
+            "the production server — every route returned 500 with "
+            "*“@clerk/clerk-react: Missing publishableKey”*.",
+            "Root cause 1: Next.js returns `null` from `useSearchParams()` while a "
+            "route is statically rendered. The pricing, settings and checkout "
+            "pages called `params.get(...)` on it. Fixed with "
+            "`useSafeSearchParams()` (always returns a `URLSearchParams`) and a "
+            "regression test.",
+            "Root cause 2: without `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` the Clerk "
+            "provider throws. Fixed with `<ConfigurationCheck />`, which renders a "
+            "setup screen that lists the missing variables instead of a 500.",
+            "Root cause 3 (the Vercel build): the local upload fallback wrote into "
+            "the project directory, so the build referenced files that were not "
+            "uploaded (`readlink … ENOENT`). The fallback now writes to `/tmp` on "
+            "serverless platforms.",
+            "Added a marketing error boundary, a workspace loading skeleton and "
+            "`.env.production` (the public production Convex URL, no secrets).",
+        ],
+    ),
+    (
+        "user",
+        "yes add these features and instead of stripe use razorpay and add few dummy "
+        "auth for testing don't make it public",
+        [],
+    ),
+    (
+        "assistant",
+        "Razorpay, public comments, database permissions and a gated dev sign-in",
+        [
+            "**Razorpay** — `lib/razorpay.ts` (orders in paise, HMAC-SHA256 "
+            "signature and webhook verification), `convex/razorpay.ts` (a "
+            "`createOrder` action — actions can do network I/O, mutations cannot — "
+            "and a `verifyPayment` mutation that only activates the subscription "
+            "after the server verified the signature), the webhook route and the "
+            "checkout widget.",
+            "**Public page comments** — anonymous visitors can comment on a page "
+            "that is published with *Can comment*; the thread is rendered under "
+            "the page. Guards against links, spam and floods.",
+            "**Per-database permissions** — a default permission per database plus a "
+            "permission per person, resolved and enforced on the server.",
+            "**The development sign-in** — `/dev/signin` signs in as Ada, Linus or "
+            "Grace without a Clerk account. It is gated twice: the deployment needs "
+            "`ALLOW_DEV_AUTH=true` **and** the JWT secret of the deployment. The "
+            "production deployment has neither — verified live: "
+            "`devAuth:status → { enabled: false }`.",
+            "While adding the new modules the type inference of the whole "
+            "`api` object broke (a circular type between the new modules and the "
+            "generated types) — fixed with explicit return types on the handlers.",
+            "100 tests, the full verification passes, everything is committed and "
+            "deployed.",
+        ],
+    ),
+    (
+        "user",
+        "just give me docs of all the things you did to solve each error and every "
+        "steps you took and chat till now give me in a doc file don't push it",
+        [],
+    ),
+    (
+        "assistant",
+        "The complete work log",
+        [
+            "Generated `docs/Jotion-Complete-Work-Log.docx` with the full chat, "
+            "every error that was found and how it was solved, and every step "
+            "that was taken — nothing was pushed.",
+        ],
+    ),
+    (
         "assistant",
         "The rest of the backlog, the build checks and Vercel",
         [
@@ -1998,6 +2100,378 @@ npx convex run demo:reset '{"key":"<KEY>"}'""",
 
 
 # ----------------------------------------------------------------------
+#  5. The complete work log
+# ----------------------------------------------------------------------
+
+ERRORS: list[tuple[str, str, str, str]] = [
+    (
+        "1",
+        "`documents.archive` returned an undefined variable",
+        "Archiving a page threw *ReferenceError: document is not defined* — the trash could never be used. The mutation used `existing` but returned `document`.",
+        "Return the updated document (`await ctx.db.get(args.id)`). Found by the new backend test, now covered by a regression test.",
+    ),
+    (
+        "2",
+        "Workspace promo codes were ignored",
+        "A workspace coupon was resolved by the server and then re-validated against the *global* catalogue in `lib/plans.ts` — the code was not in there, so the discount was 0.",
+        "`buildQuote()` now accepts an already validated `coupon` object and uses it as is. Covered by a test.",
+    ),
+    (
+        "3",
+        "The seat count was derived from the member count",
+        "Buying seats changed the invoice but nothing else: the price was always calculated from the number of members, and removing seats never produced a credit.",
+        "The purchased seats are stored on the workspace (`workspaces.seats`) and used for every price, proration and quote.",
+    ),
+    (
+        "4",
+        "Invited members could never join a workspace",
+        "An invitation was stored with the user id `pending:<email>` and was never linked to the real account, so the invited person got *Unauthorized* everywhere.",
+        "`workspaces.ensureDefault()` claims the pending invitations of the signed-in e-mail address on the first sign-in. The client-side `UserSync` provider keeps the mirror in sync.",
+    ),
+    (
+        "5",
+        "`users.syncUser` was never called",
+        "The mirror of the Clerk profile stayed empty — member names, avatars and @mentions never resolved. The function existed but nothing used it.",
+        "A `<UserSync />` provider is mounted in the app shell and syncs the profile on every load.",
+    ),
+    (
+        "6",
+        "The `useAuth` cast in the Convex provider hid a Clerk type mismatch",
+        "Convex 1.47 expects the Clerk v6 shape of `useAuth` (with `sessionClaims`); the app passed the Clerk v5 hook through a cast. The next Clerk upgrade would have broken the app.",
+        "Upgraded to `@clerk/clerk-react` 5.61 — the cast is gone and the types match.",
+    ),
+    (
+        "7",
+        "The audit log loaded the whole history in one query",
+        "Large workspaces became slow and could exhaust memory.",
+        "Cursor pagination (`activity:auditLogPaginated`) with a *Load more* button in the settings.",
+    ),
+    (
+        "8",
+        "A production build overwrote the dev server's `.next` directory",
+        "**Every page returned HTTP 200 while all of its JavaScript and CSS returned 404** — the site looked completely broken. Both `next dev` and `next build` write to `.next`.",
+        "The dev server writes to `.next-dev` (`distDir` in `next.config.mjs`), so the two can run side by side. `scripts/check-assets.mjs` (`npm run check:assets`) verifies every route and runs in CI.",
+    ),
+    (
+        "9",
+        "`useSearchParams()` returns `null` while a route is statically rendered",
+        "**The deployed app crashed with *“Jotion could not start — Cannot read properties of null (reading 'get')”*.** The pricing, settings and checkout pages called `params.get(...)` on the `null`.",
+        "`useSafeSearchParams()` always returns a `URLSearchParams`; the three pages use it. Covered by a regression test.",
+    ),
+    (
+        "10",
+        "The Clerk provider throws without a publishable key",
+        "A deployment without `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` returned a 500 for every route (*“@clerk/clerk-react: Missing publishableKey”*).",
+        "`<ConfigurationCheck />` renders a setup screen that lists exactly which variables are missing and how to get them.",
+    ),
+    (
+        "11",
+        "The local upload fallback wrote into the project directory",
+        "The Vercel build referenced files that were not uploaded — `ENOENT: no such file or directory, readlink '/vercel/path0/.env.local'` and the same for `.jotion-uploads/…`.",
+        "The fallback writes to `/tmp` on serverless platforms (`lib/upload-dir.ts`); the local artefacts were removed and `.vercelignore` excludes them.",
+    ),
+    (
+        "12",
+        "The Vercel CLI rewrote the environment files",
+        "After a deployment the CLI had added the Clerk key to `.env.production` and added the file to `.gitignore`.",
+        "`.env.production` only ever contains the public Convex URL; the file is committed (with a `!` rule in `.gitignore`) and the CLI changes are reverted.",
+    ),
+    (
+        "13",
+        "The CSV parser did not split the cells",
+        "Every CSV row came back as a single cell, so the Notion import produced empty databases.",
+        "`parseCsv` now splits the rows with `parseCsvLine` (quotes included).",
+    ),
+    (
+        "14",
+        "The Notion export tree builder missed the database folders",
+        "Databases were not imported at all — the sub-directory detection skipped the level that holds the CSV.",
+        "The children of a directory are the first segment of every path below it; the CSV of a database folder is no longer imported twice.",
+    ),
+    (
+        "15",
+        "The relation key was hard-coded in a test",
+        "The rollup test failed with an empty value — the generated relation key contains a timestamp, not `invoices-0`.",
+        "The test reads the real key from the database before it creates the rollup.",
+    ),
+    (
+        "16",
+        "A circular type between the new Convex modules and the generated types",
+        "`import { internal } from './_generated/api'` inside a module that the generated types import back made the whole `api` object degrade to `any` — every `useQuery` in the app lost its type.",
+        "Explicit return types on the action handlers break the inference cycle. The generated types stay strict.",
+    ),
+    (
+        "17",
+        "`Uint8Array` cannot be spread without `downlevelIteration`",
+        "`String.fromCharCode(...bytes)` failed to compile in the Convex runtime.",
+        "The bytes are converted with a loop.",
+    ),
+    (
+        "18",
+        "The `users.email` field is required, the dev user e-mail is optional",
+        "The insert of the user mirror failed with a type error.",
+        "The e-mail falls back to an empty string.",
+    ),
+    (
+        "19",
+        "`setAuth` expects a token fetcher",
+        "`client.setAuth(token)` did not compile — Convex wants `async () => token`.",
+        "The development session stores the token and hands a fetcher to the client.",
+    ),
+    (
+        "20",
+        "A Convex action cannot read the database",
+        "`ctx.db` does not exist in an action, so the Razorpay order could not read the invoice.",
+        "The action calls an internal query (`internal.billing.getCheckoutInvoice`) and stores the order with an internal mutation.",
+    ),
+    (
+        "21",
+        "A wrong `toContain` arity in a test",
+        "`expect(text).toContain('run', 'typecheck')` is not a valid assertion — the second argument is ignored, so the test never failed for the right reason.",
+        "The test checks the exact strings of the verifier script.",
+    ),
+    (
+        "22",
+        "A self-referencing `v.id('documents')` was suspected",
+        "The first hypothesis for the broken types was a circular schema — it was **not** the cause (the schema stayed as it is, the inference cycle was).",
+        "The real cause was found by probing the generated types (issue 16).",
+    ),
+]
+
+
+STEPS: list[tuple[str, str, list[str]]] = [
+    (
+        "Round 1 — the pricing engine",
+        "The repository was explored: a Next.js 14 app with Convex, Clerk, BlockNote and a shallow pricing implementation. `lib/plans.ts` was rewritten into a pricing engine (plans, limits, feature matrix, coupons, quotes, proration, permissions), the schema was extended (coupons, payment methods, page access, invoice fields) and `convex/billing.ts` became a real subscription engine (checkout, promos, tax, prorated upgrades, scheduled downgrades, renewals, seats, cards, billing details). The billing screens, the checkout and the pricing page were rewritten, and the Notion gaps were closed (page access, sub-pages, notifications, password links, formulas, sorting and filtering, CSV import).",
+        [
+            "`lib/plans.ts` — the single source of truth for the pricing, in cents.",
+            "`convex/billing.ts` — `quote`, `startCheckout`, `completeCheckout`, `changePlan`, `renewSubscription`, `updateSeats`, payment methods, coupons.",
+            "The upgrade dialog, the usage meters and the plan-change preview with the exact prorated amount.",
+        ],
+    ),
+    (
+        "Round 2 — the documents",
+        "Five Word documents were generated with `scripts/generate-docs.py`: the product documentation, the complete source listing (every file with its content), the chat transcript, the updates and next steps, and a combined handbook. `.env.local` is deliberately excluded so no secret is ever copied into a document.",
+        [
+            "`docs/Jotion-Documentation.docx`, `docs/Jotion-Source-Code.docx`, `docs/Jotion-Chat-Transcript.docx`, `docs/Jotion-Updates-and-Next-Steps.docx`, `docs/Jotion-Complete-Handbook.docx`.",
+            "`npm run docs` regenerates them.",
+        ],
+    ),
+    (
+        "Round 3 — running the app and the test harness",
+        "The Convex CLI needs an interactive login and Docker Hub was blocked, so `convex-test` + Vitest were installed to run the **real Convex functions** against an in-memory backend. The suite immediately uncovered the first five bugs (issues 1–5) — all of them were fixed and are now covered by regression tests.",
+        [
+            "`vitest.config.ts` with the `@` alias and `convex-test` inlined.",
+            "`tests/plans.test.ts`, `tests/formula.test.ts`, `tests/backend.test.ts`, `tests/databases.test.ts` — 49 tests at that point.",
+            "`npm test`, `npm run test:watch`.",
+        ],
+    ),
+    (
+        "Round 4 — the remaining steps against the live deployment",
+        "The schema was pushed, so the CLI could be used: `npx convex data` listed all 17 tables, `npx convex function-spec` showed 106 functions and `npx convex run demo:smoke` proved the pricing engine, the formula engine and the plan limits on the real backend. The demo seeder, the e-mail notifications (`lib/mailer.ts` + the internal `mail:send` action), the audit-log pagination, the route error boundaries, the Clerk upgrade and the private pages were added.",
+        [
+            "`convex/demo.ts` — a key-gated seeder, reset and self-check.",
+            "`lib/mailer.ts` — Resend with a log fallback.",
+            "Private pages are now enforced on the server and blocked on the Free plan.",
+        ],
+    ),
+    (
+        "Round 5 — GitHub Actions",
+        "The placeholder workflows were replaced by a real pipeline: `ci.yml` (type check, lint, tests, asset check, build, documentation artifact), `deploy.yml` (Convex production deploy + Vercel) and `dependabot.yml`. The MCP workflow became advisory so it can never block a pull request.",
+        [
+            "`.github/workflows/ci.yml`, `deploy.yml`, `.github/dependabot.yml`.",
+            "`npm run ci` runs the same chain locally.",
+        ],
+    ),
+    (
+        "Round 6 — the broken page",
+        "The pages looked wrong because every asset returned 404 (issue 8). The dev server got its own output directory, `scripts/check-assets.mjs` was added and `tests/config.test.ts` guards the configuration.",
+        [
+            "`distDir: '.next-dev'` in `next.config.mjs`.",
+            "`npm run check:assets` — starts the server and checks every route.",
+        ],
+    ),
+    (
+        "Round 7 — the next sprint",
+        "Markdown import (`lib/markdown.ts` — headings, lists, to-dos, quotes, code fences, dividers and the inline marks), the protection against conflicting edits, page mentions with a *linked mentions* panel, **relations and rollups** (count, sum, average, min, max, list) and **automations** (trigger → set a property / notify, limited by the plan).",
+        [
+            "`tests/sprint.test.ts`, `tests/relations.test.ts`.",
+            "The plan matrix gained an *automations* limit (Free none, Plus 5 per database, Business unlimited).",
+        ],
+    ),
+    (
+        "Round 8 — the rest of the backlog, the build checks and Vercel",
+        "**Real-time collaboration** through a Yjs CRDT that is synced via Convex (with a convergence test), the **import of a whole Notion export** (a dependency-free ZIP reader using `DecompressionStream`), **templates with properties and database presets**, **synced blocks** (a page mirrors another one) and the **AI writing assistant** (improve, shorten, summarize, continue, translate — pluggable provider). `npm run verify` was created (type check → lint → tests → build → asset check → Vercel compatibility) and `vercel.json`/`.vercelignore` were added.",
+        [
+            "`lib/collaboration.ts`, `hooks/use-collaboration.ts`, `convex/collaboration.ts`.",
+            "`lib/zip.ts`, `lib/notion-import.ts`, `convex/documents.ts` (`importNotionExport`).",
+            "`lib/ai.ts`, `convex/ai.ts`, `components/editor/ai-assistant.tsx`.",
+        ],
+    ),
+    (
+        "Round 9 — the crash, the commit and the deployment",
+        "The deployed app crashed (issues 9 and 10) — reproduced locally, diagnosed and fixed. The work was committed (135 files) and pushed to `origin/v2`; the backend was deployed to the production Convex deployment `impartial-nightingale-31` and verified with the demo self-check. A temporary Vercel deployment proved that the build works.",
+        [
+            "`hooks/use-safe-search-params.ts`, `components/providers/configuration-check.tsx`.",
+            "`app/(marketing)/error.tsx`, `app/(main)/loading.tsx`, `lib/upload-dir.ts`, `.env.production`.",
+        ],
+    ),
+    (
+        "Round 10 — Razorpay, public comments, database permissions and the dev sign-in",
+        "Razorpay replaced the planned Stripe: orders, signature and webhook verification, the widget in the checkout and the webhook route. Published pages accept comments from anonymous visitors, databases got a default permission plus a permission per person, and `/dev/signin` was added — gated twice so that it can never be public.",
+        [
+            "`lib/razorpay.ts`, `convex/razorpay.ts`, `app/api/webhooks/razorpay/route.ts`.",
+            "`components/page/public-comments.tsx`, `components/database/permissions-panel.tsx`.",
+            "`convex/devAuth.ts`, `convex/devAuthInternal.ts`, `lib/dev-auth.ts`, `app/(dev)/dev/signin/page.tsx`.",
+            "Verified live: the production deployment reports `devAuth:status → { enabled: false }`.",
+        ],
+    ),
+]
+
+
+def build_work_log(path: Path):
+    document = new_document(
+        "Jotion — Complete Work Log",
+        "Every error, every fix, every step and the whole conversation",
+    )
+
+    add_toc(
+        document,
+        [
+            ("Part I — How to read this document", 1),
+            ("Part II — The conversation, turn by turn", 1),
+            ("Part III — Every error and how it was solved", 1),
+            ("Part IV — Every step that was taken", 1),
+            ("Part V — The final state", 1),
+        ],
+    )
+
+    # ------------------------------------------------------------------
+    document.add_heading("Part I — How to read this document", level=1)
+    add_paragraph(
+        document,
+        "This is the complete log of the work on Jotion: the conversation as it "
+        "happened, every error that was found, how each of them was solved and "
+        "every step that was taken in between.",
+    )
+    add_table(
+        document,
+        ["Part", "Content"],
+        [
+            ["II", "The whole conversation — every request and what was done in response"],
+            ["III", "22 errors, their impact and the fix (with the files that changed)"],
+            ["IV", "The ten rounds of work, from the pricing engine to the dev sign-in"],
+            ["V", "The final state: verification results, deployment status and the file map"],
+        ],
+    )
+
+    # ------------------------------------------------------------------
+    document.add_heading("Part II — The conversation, turn by turn", level=1)
+    for index, (speaker, title, bullets) in enumerate(CHAT, start=1):
+        document.add_heading(f"{index}. {title}", level=2)
+        label = document.add_paragraph()
+        run = label.add_run("USER" if speaker == "user" else "ASSISTANT")
+        run.bold = True
+        run.font.size = Pt(9)
+        run.font.color.rgb = (
+            RGBColor(0x1A, 0x73, 0xE8) if speaker == "user" else RGBColor(0x0F, 0x9D, 0x58)
+        )
+        for bullet in bullets:
+            paragraph = document.add_paragraph(style="List Bullet")
+            paragraph.paragraph_format.left_indent = Inches(0.3)
+            paragraph.paragraph_format.space_after = Pt(3)
+            _add_inline(paragraph, bullet)
+
+    # ------------------------------------------------------------------
+    document.add_heading("Part III — Every error and how it was solved", level=1)
+    add_paragraph(
+        document,
+        "Most of these were found by the test suite rather than by hand — which "
+        "is exactly why it was written.",
+    )
+    for number, title, impact, fix in ERRORS:
+        document.add_heading(f"{number}. {title}", level=2)
+        paragraph = document.add_paragraph()
+        run = paragraph.add_run("What happened: ")
+        run.bold = True
+        _add_inline(paragraph, impact)
+        paragraph = document.add_paragraph()
+        run = paragraph.add_run("How it was solved: ")
+        run.bold = True
+        _add_inline(paragraph, fix)
+
+    # ------------------------------------------------------------------
+    document.add_heading("Part IV — Every step that was taken", level=1)
+    for title, summary, files in STEPS:
+        document.add_heading(title, level=2)
+        add_paragraph(document, summary)
+        add_bullets(document, files)
+
+    # ------------------------------------------------------------------
+    document.add_heading("Part V — The final state", level=1)
+
+    document.add_heading("Verification", level=2)
+    add_table(
+        document,
+        ["Check", "Result"],
+        [
+            ["Type check", "PASS — 0 errors"],
+            ["Lint", "PASS — 0 errors (one pre-existing warning about `<img>`)"],
+            ["Tests", "PASS — 100/100 in 13 files"],
+            ["Production build", "PASS — 13 routes"],
+            ["Asset check", "PASS — every route serves all of its JavaScript and CSS"],
+            ["Vercel compatibility", "PASS"],
+            ["Convex production", "142 functions deployed, demo self-check passing"],
+        ],
+    )
+
+    document.add_heading("Deployment", level=2)
+    add_table(
+        document,
+        ["Part", "Status"],
+        [
+            ["Convex backend (production)", "DEPLOYED — impartial-nightingale-31.convex.cloud"],
+            ["GitHub", "PUSHED — the `v2` branch of the repository"],
+            ["Web app (Vercel)", "READY — the build was verified with a temporary deployment; a permanent one needs the account of the owner"],
+            ["Development sign-in", "ENABLED on the development deployment, DISABLED on production (verified live)"],
+        ],
+    )
+
+    document.add_heading("What still needs the owner", level=2)
+    add_numbered(
+        document,
+        [
+            "**Clerk** — the publishable key of the production instance in the Vercel project.",
+            "**Vercel** — `npx vercel login`, `npx vercel link`, the environment variables and `npx vercel --prod` (or the Vercel GitHub app).",
+            "**Razorpay** (optional) — the key id, the key secret and the webhook secret, so the real checkout replaces the demo one.",
+            "**The development sign-in** (optional) — `npx convex env set DEV_AUTH_SECRET \"<the JWT secret>\"` on the development deployment.",
+            "**Storage** (optional) — the EdgeStore keys, so that uploads are durable instead of living in `/tmp`.",
+        ],
+    )
+
+    document.add_heading("The new files", level=2)
+    add_table(
+        document,
+        ["Area", "Files"],
+        [
+            ["Pricing", "lib/plans.ts, convex/billing.ts, components/billing/*"],
+            ["Databases", "lib/formula.ts, convex/databases.ts, components/database/*"],
+            ["Collaboration", "lib/collaboration.ts, hooks/use-collaboration.ts, convex/collaboration.ts"],
+            ["Import", "lib/zip.ts, lib/notion-import.ts, lib/markdown.ts, components/page/import-*.tsx"],
+            ["Payments", "lib/razorpay.ts, convex/razorpay.ts, app/api/webhooks/razorpay/route.ts"],
+            ["AI", "lib/ai.ts, convex/ai.ts, components/editor/ai-assistant.tsx"],
+            ["E-mail", "lib/mailer.ts, convex/mail.ts"],
+            ["Testing", "vitest.config.ts, tests/*.test.ts (13 files)"],
+            ["Operations", "scripts/verify-build.mjs, scripts/check-assets.mjs, scripts/generate-docs.py, vercel.json, .vercelignore, .github/workflows/*"],
+            ["Documentation", "docs/*.docx, docs/DEPLOYMENT.md"],
+        ],
+    )
+
+    document.save(path)
+    return path
+
+
+# ----------------------------------------------------------------------
 #  main
 # ----------------------------------------------------------------------
 
@@ -2006,6 +2480,9 @@ def main():
 
     documentation = build_documentation(DOCS / "Jotion-Documentation.docx")
     print(f"✓ {documentation.relative_to(ROOT)}")
+
+    work_log = build_work_log(DOCS / "Jotion-Complete-Work-Log.docx")
+    print(f"✓ {work_log.relative_to(ROOT)}")
 
     updates = build_updates_and_next_steps(
         DOCS / "Jotion-Updates-and-Next-Steps.docx"
